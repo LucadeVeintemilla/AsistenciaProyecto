@@ -12,6 +12,9 @@ exports.getNotifications = async (req, res) => {
 exports.createNotification = async (req, res) => {
   try {
     const notification = await Notification.create(req.body);
+    // emitir a tiempo real
+    const io = req.app.get('io');
+    io.emit('notification', notification);
     res.status(201).json(notification);
   } catch (error) {
     res.status(500).json({ message: error.message });

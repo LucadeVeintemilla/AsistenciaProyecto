@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import Navbar from '../components/Navbar';
+import ReportModal from '../components/ReportModal';
 import FullCalendar from '@fullcalendar/react';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
@@ -25,22 +27,37 @@ const DocenteDashboard = () => {
   const [selectedClass, setSelectedClass] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [attendance, setAttendance] = useState({}); // { studentId: { status, comment } }
-  const [savedAttendance, setSavedAttendance] = useState({}); // { classId: attendanceObj }
+  const [savedAttendance, setSavedAttendance] = useState(() => {
+    const stored = localStorage.getItem('savedAttendance');
+    return stored ? JSON.parse(stored) : {};
+  }); // { classId: attendanceObj }
 
     useEffect(() => {
+    // whenever savedAttendance changes, recolor events list
+    setEvents((prev) =>
+      prev.map((ev) =>
+        savedAttendance[ev.id]
+          ? { ...ev, backgroundColor: '#38bdf8' }
+          : ev
+      )
+    );
+  }, [savedAttendance]);
+
+  useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) return;
     const { id } = jwtDecode(token);
     const fetchClasses = async () => {
       const { data } = await api.get(`/classes/teacher/${id}`);
       setClasses(data);
-      setEvents(
+      setEvents((prev) =>
         data.map((cls) => ({
           id: cls._id,
           title: cls.name,
           start: cls.start,
           end: cls.end,
           extendedProps: { cls },
+          backgroundColor: savedAttendance[cls._id] ? '#38bdf8' : '',
         }))
       );
     };
@@ -67,6 +84,8 @@ const DocenteDashboard = () => {
     }));
   };
 
+  const [showReport, setShowReport] = useState(false);
+
   const submitAttendance = async () => {
     if (!selectedClass) return;
     const records = Object.entries(attendance)
@@ -82,7 +101,11 @@ const DocenteDashboard = () => {
       records,
     });
     // guarda asistencia local para esta clase
-  setSavedAttendance((prev) => ({ ...prev, [selectedClass._id]: attendance }));
+  setSavedAttendance((prev) => {
+      const updated = { ...prev, [selectedClass._id]: attendance };
+      localStorage.setItem('savedAttendance', JSON.stringify(updated));
+      return updated;
+    });
   // colorear evento en calendario
   setEvents((prev) =>
     prev.map((ev) =>
@@ -96,8 +119,14 @@ const DocenteDashboard = () => {
   };
 
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Panel Docente</h1>
+    <div className="bg-gray-100 min-h-screen">
+      <Navbar title="Panel Docente" />
+      <div className="p-4 max-w-7xl mx-auto">
+    
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold">Panel Docente</h1>
+        <button onClick={() => setShowReport(true)} className="bg-emerald-600 text-white px-4 py-2 rounded">Reporte de seguimiento</button>
+      </div>
       <div className="flex gap-4">
         <div className="w-2/3 bg-white p-4 shadow rounded mb-4">
           <FullCalendar
@@ -170,7 +199,7 @@ const DocenteDashboard = () => {
                 Guardar Asistencia
               </button>
               <button
-                className="mt-2 text-sm text-gray-600 underline"
+                className="mt-4 bg-blue-600 text-white px-4 py-2 rounded"
                 onClick={() => setShowModal(false)}
               >
                 Cerrar
@@ -179,8 +208,12 @@ const DocenteDashboard = () => {
           </div>
         )}
       </div>
+      {showReport && (
+          <ReportModal isOpen={showReport} onClose={() => setShowReport(false)} mode="teacher" teacherId={jwtDecode(localStorage.getItem('token')).id} />
+        )}
     </div>
-  );
+    </div>
+   );
 };
 
 export default DocenteDashboard;

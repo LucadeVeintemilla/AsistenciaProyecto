@@ -25,7 +25,7 @@ exports.recordAttendance = async (req, res) => {
       });
       const percent = total ? (present / total) * 100 : 100;
 
-      if (percent < 85) {
+      if (percent < 70) {
         // alert psicologo
         io.emit('alert', {
           type: 'alert',
@@ -33,7 +33,6 @@ exports.recordAttendance = async (req, res) => {
           percent,
         });
       } else if (percent < 87) {
-        // prealert padre
         io.emit('prealert', {
           type: 'prealert',
           student: rec.student,

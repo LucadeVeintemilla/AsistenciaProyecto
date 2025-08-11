@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import Navbar from '../components/Navbar';
+import ReportModal from '../components/ReportModal';
 import jwtDecode from 'jwt-decode';
 import io from 'socket.io-client';
 import api from '../api';
@@ -15,12 +17,13 @@ const PadreDashboard = () => {
   const [child, setChild] = useState(null);
   const [attendance, setAttendance] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [showReport, setShowReport] = useState(false);
 
-  // obtener único hijo del padre
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) return;
     const { id: parentId } = jwtDecode(token);
+    // obtener hijos
     api.get('/students').then(({ data }) => {
       const first = data[0];
       if (first) {
@@ -31,6 +34,14 @@ const PadreDashboard = () => {
 
     socket.on('prealert', (msg) => {
       setNotifications((prev) => [...prev, msg]);
+      });
+      // obtener notificaciones guardadas
+    api.get('/notifications').then(({ data }) => {
+      setNotifications(data.map((n) => ({ type: 'manual', message: n.message })));
+    });
+
+    socket.on('notification', (n) => {
+        setNotifications((prev) => [...prev, { type: 'manual', message: n.message }]);
     });
   }, []);
 
@@ -40,8 +51,19 @@ const PadreDashboard = () => {
   };
 
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Panel Padres</h1>
+    <div className="bg-gray-100 min-h-screen">
+      <Navbar title="Panel Padres" />
+      <div className="p-4 max-w-7xl mx-auto">
+    
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold">Panel Padres</h1>
+        {child && (
+          <button onClick={() => setShowReport(true)} className="bg-emerald-600 text-white px-4 py-2 rounded">Reporte de seguimiento</button>
+        )}
+      </div>
+      {showReport && (
+        <ReportModal isOpen={showReport} onClose={() => setShowReport(false)} mode="parent" studentId={child?._id} />
+      )}
       
       {child && (
         <h2 className="text-xl font-semibold mb-2">Alumno: {child.name}</h2>
@@ -53,6 +75,7 @@ const PadreDashboard = () => {
             <thead>
               <tr>
                 <th>Fecha</th>
+                <th>Clase</th>
                 <th>Estado</th>
                 <th>Comentario</th>
               </tr>
@@ -61,6 +84,7 @@ const PadreDashboard = () => {
               {attendance.map((att) => (
                 <tr key={att.date} className="border-t">
                   <td>{new Date(att.date).toLocaleDateString()}</td>
+                    <td>{att.className}</td>
                   <td>
                     <span
                       className={`inline-block w-4 h-4 rounded-full ${statusColors[att.status]}`}
@@ -77,15 +101,16 @@ const PadreDashboard = () => {
           <ul>
             {notifications.map((n, idx) => (
               <li key={idx} className="border-b py-2">
-                {n.type === 'prealert' && (
-                  <p>
-                    Prealerta: Su hijo tiene {n.percent.toFixed(1)}% de asistencia
-                  </p>
-                )}
+                {n.type === 'prealert' ? (
+                      <p>Prealerta: Su hijo tiene {n.percent.toFixed(1)}% de asistencia</p>
+                    ) : (
+                      <p>{n.message}</p>
+                    )}
               </li>
             ))}
           </ul>
         </div>
+      </div>
       </div>
     </div>
   );

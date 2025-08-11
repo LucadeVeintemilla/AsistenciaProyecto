@@ -15,7 +15,9 @@ exports.getByStudent = async (req, res) => {
       ? { 'records.student': studentObjectId }
       : { 'records.student': studentId };
 
-    const attendanceDocs = await Attendance.find(query).select('date records');
+    const attendanceDocs = await Attendance.find(query)
+      .populate('classId', 'name')
+      .select('date records classId');
 
     const statusMap = {
       presente: 'presente',
@@ -38,6 +40,7 @@ exports.getByStudent = async (req, res) => {
 
       return {
         date: att.date,
+        className: att.classId?.name || 'Clase',
         status: statusMap[rec?.status] || 'falta',
         comment: rec?.comment || '',
       };

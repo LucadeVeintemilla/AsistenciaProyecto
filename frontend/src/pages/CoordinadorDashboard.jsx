@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import Navbar from '../components/Navbar';
 import FullCalendar from '@fullcalendar/react';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
@@ -147,7 +148,10 @@ const CoordinadorDashboard = () => {
   };
 
   return (
-    <div className="p-4">
+    <div className="bg-gray-100 min-h-screen">
+      <Navbar title="Panel Coordinador" />
+      <div className="p-4 max-w-7xl mx-auto">
+    
       <h1 className="text-2xl font-bold mb-4">Panel Coordinador</h1>
 
       {/* Agregar alumno */}
@@ -283,8 +287,10 @@ const CoordinadorDashboard = () => {
           </tbody>
         </table>
       </div>
+      </div>
     </div>
   );
+  
 };
 
 export default CoordinadorDashboard;

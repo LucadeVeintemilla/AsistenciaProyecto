@@ -40,7 +40,9 @@ exports.getClassById = async (req, res) => {
 
 exports.getClasses = async (req, res) => {
   try {
-        const query = req.query.teacher ? { teacher: req.query.teacher } : {};
+        let query = {};
+    if (req.query.teacher) query.teacher = req.query.teacher;
+    if (req.query.student) query.students = req.query.student;
     const classes = await Class.find(query).populate('teacher', 'name').populate('students', 'name');
     res.json(classes);
   } catch (error) {
