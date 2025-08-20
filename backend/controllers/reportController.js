@@ -1,4 +1,5 @@
 const Attendance = require('../models/Attendance');
+const mongoose = require('mongoose');
 const Class = require('../models/Class');
 
 function getDateRange(period) {
@@ -20,29 +21,40 @@ function getDateRange(period) {
 exports.teacherReport = async (req, res) => {
   try {
     const { teacher, student, classId, period = 'all' } = req.query;
+    // ensure we are comparing ObjectIds inside the aggregation pipeline
+    const studentObj = student ? new mongoose.Types.ObjectId(student) : null;
+    const classObj = classId ? new mongoose.Types.ObjectId(classId) : null;
     if (!teacher) return res.status(400).json({ message: 'teacher is required' });
 
-    const match = { 'cls.teacher': teacher };
-    if (classId) match['cls._id'] = classId;
+    // Build list of classes for the teacher first so we can restrict the aggregation
+    const classFilter = { teacher };
+    if (classObj) classFilter._id = classObj;
 
     const dateRange = getDateRange(period);
-    if (Object.keys(dateRange).length) match.date = dateRange;
+    
 
-    // lookup classes first
-    const classes = await Class.find({ teacher }).select('_id name');
+    // lookup classes first with optional class filter
+    const classes = await Class.find(classFilter).select('_id name');
     const classMap = Object.fromEntries(classes.map((c) => [c._id.toString(), c.name]));
 
     const pipeline = [
-      { $match: { classId: { $in: classes.map((c) => c._id) }, ...(dateRange.$gte ? { date: dateRange } : {}) } },
-      { $unwind: '$records' },
-      { $match: student ? { 'records.student': student } : {} },
       {
-        $group: {
-          _id: { classId: '$classId', student: '$records.student', status: '$records.status' },
-          count: { $sum: 1 },
+        $match: {
+          classId: { $in: classes.map((c) => c._id) },
+          ...(Object.keys(dateRange).length ? { date: dateRange } : {}),
         },
       },
+      { $unwind: '$records' },
     ];
+    if (studentObj) {
+      pipeline.push({ $match: { 'records.student': studentObj } });
+    }
+    pipeline.push({
+      $group: {
+        _id: { classId: '$classId', student: '$records.student', status: '$records.status' },
+        count: { $sum: 1 },
+      },
+    });
 
     const agg = await Attendance.aggregate(pipeline);
 
@@ -66,17 +78,20 @@ exports.teacherReport = async (req, res) => {
 exports.parentReport = async (req, res) => {
   try {
     const { student, classId, period = 'all' } = req.query;
+    const studentObj = new mongoose.Types.ObjectId(student);
+    const classObj = classId ? new mongoose.Types.ObjectId(classId) : null;
     if (!student) return res.status(400).json({ message: 'student is required' });
 
-    const match = { 'records.student': student };
-    if (classId) match.classId = classId;
+    const match = { 'records.student': studentObj };
+    if (classObj) match.classId = classObj;
     const dateRange = getDateRange(period);
     if (Object.keys(dateRange).length) match.date = dateRange;
+    
 
     const pipeline = [
       { $match: match },
       { $unwind: '$records' },
-      { $match: { 'records.student': student } },
+      { $match: { 'records.student': studentObj } },
       {
         $group: {
           _id: { classId: '$classId', status: '$records.status' },
@@ -87,7 +102,7 @@ exports.parentReport = async (req, res) => {
 
     const agg = await Attendance.aggregate(pipeline);
     // get class names
-    const classIds = [...new Set(agg.map((a) => a._id.classId))];
+    const classIds = [...new Set(agg.map((a) => a._id.classId))].filter(Boolean);
     const classes = await Class.find({ _id: { $in: classIds } }).select('_id name');
     const classMap = Object.fromEntries(classes.map((c) => [c._id.toString(), c.name]));
 

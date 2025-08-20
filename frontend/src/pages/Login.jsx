@@ -58,11 +58,12 @@ const Login = ({ setUser }) => {
         >
           Entrar
         </button>
-      </form>
-      <p className="text-center text-sm mt-2">
+        <p className="text-center text-sm mt-2">
         ¿No tienes cuenta?{' '}
         <a className="text-blue-600" href="/register">Regístrate</a>
       </p>
+      </form>
+      
     </div>
   );
 };

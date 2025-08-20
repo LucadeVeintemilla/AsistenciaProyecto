@@ -20,8 +20,10 @@ const ReportModal = ({ isOpen, onClose, mode, teacherId, studentId }) => {
           (c.students || []).forEach((s) => unique.set(s._id, s.name));
         });
         setStudents(Array.from(unique, ([id, name]) => ({ _id: id, name })));
-      } else if (mode === 'parent') {
-        setClasses([]);
+      } else if (mode === 'parent' && studentId) {
+        // obtener cursos en los que está matriculado el alumno
+        const { data: cls } = await api.get('/classes', { params: { student: studentId } });
+        setClasses(cls);
       }
     };
     load();
