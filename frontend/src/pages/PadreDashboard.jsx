@@ -37,11 +37,11 @@ const PadreDashboard = () => {
       });
       // obtener notificaciones guardadas
     api.get('/notifications').then(({ data }) => {
-      setNotifications(data.map((n) => ({ type: 'manual', message: n.message })));
+      setNotifications(data.map((n) => ({ type: 'manual', message: n.message, createdAt: n.createdAt })));
     });
 
     socket.on('notification', (n) => {
-        setNotifications((prev) => [...prev, { type: 'manual', message: n.message }]);
+        setNotifications((prev) => [...prev, { type: 'manual', message: n.message, createdAt: n.createdAt }]);
     });
   }, []);
 
@@ -104,7 +104,7 @@ const PadreDashboard = () => {
                 {n.type === 'prealert' ? (
                       <p>Prealerta: Su hijo tiene {n.percent.toFixed(1)}% de asistencia</p>
                     ) : (
-                      <p>{n.message}</p>
+                      <p><span className="text-gray-500 mr-2">{new Date(n.createdAt).toLocaleDateString()}</span>{n.message}</p>
                     )}
               </li>
             ))}

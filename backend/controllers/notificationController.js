@@ -2,7 +2,18 @@ const Notification = require('../models/Notification');
 
 exports.getNotifications = async (req, res) => {
   try {
-    const notifications = await Notification.find({ toUser: req.user._id });
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    await Notification.deleteMany({
+      toUser: req.user._id,
+      createdAt: { $lt: sevenDaysAgo },
+    });
+
+    const notifications = await Notification.find({
+      toUser: req.user._id,
+      createdAt: { $gte: sevenDaysAgo },
+    }).sort({ createdAt: -1 });
+
     res.json(notifications);
   } catch (error) {
     res.status(500).json({ message: error.message });
