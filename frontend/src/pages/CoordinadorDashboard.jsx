@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Navbar from '../components/Navbar';
 import FullCalendar from '@fullcalendar/react';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -8,13 +8,25 @@ import api from '../api';
 const CoordinadorDashboard = () => {
   const [students, setStudents] = useState([]);
   const [events, setEvents] = useState([]);
+  const [classes, setClasses] = useState([]);
   const [name, setName] = useState('');
   const [parentEmail, setParentEmail] = useState('');
+  const [editingStudentId, setEditingStudentId] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [newClassName, setNewClassName] = useState('');
   const [selectedStudents, setSelectedStudents] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [selectedTeacher, setSelectedTeacher] = useState('');
+  const [selectedExistingClass, setSelectedExistingClass] = useState('');
+
+  const uniqueClasses = useMemo(() => {
+    const seen = new Set();
+    return classes.filter((c) => {
+      if (seen.has(c.name)) return false;
+      seen.add(c.name);
+      return true;
+    });
+  }, [classes]);
   const [slotInfo, setSlotInfo] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editingClassId, setEditingClassId] = useState(null);
@@ -36,6 +48,7 @@ const CoordinadorDashboard = () => {
 
   const loadClasses = async () => {
     const { data } = await api.get('/classes');
+    setClasses(data);
     setEvents(
       data.map((cls) => ({
         id: cls._id,
@@ -47,11 +60,19 @@ const CoordinadorDashboard = () => {
     );
   };
 
-  const addStudent = async () => {
-    await api.post('/students', {
-      name,
-      parentEmail,
-    });
+  const saveStudent = async () => {
+    if (editingStudentId) {
+      await api.put(`/students/${editingStudentId}`, {
+        name,
+        parentEmail,
+      });
+      setEditingStudentId(null);
+    } else {
+      await api.post('/students', {
+        name,
+        parentEmail,
+      });
+    }
     setName('');
     setParentEmail('');
     fetchStudents();
@@ -62,24 +83,52 @@ const CoordinadorDashboard = () => {
     fetchStudents();
   };
 
+  const startEditStudent = (student) => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setEditingStudentId(student._id);
+    setName(student.name || '');
+    setParentEmail(student.parent?.email ?? '');
+  };
+
   const createClass = async () => {
-    if (!newClassName || !slotInfo) return;
+    if (!slotInfo) return;
     try {
-      const { data } = await api.post('/classes', {
-        name: newClassName,
-        teacher: selectedTeacher,
-        students: selectedStudents,
-        start: slotInfo.start,
-        end: slotInfo.end,
-      });
+      let clsData;
+      if (selectedExistingClass) {
+        // crear nueva clase tomando como plantilla la seleccionada
+        const template = classes.find((c) => c._id === selectedExistingClass);
+        if (!template) return;
+        const { data } = await api.post('/classes', {
+          name: template.name,
+          teacher: template.teacher?._id || template.teacher,
+          students: (template.students || []).map((s) => s?._id || s),
+          start: slotInfo.start,
+          end: slotInfo.end,
+        });
+        clsData = data;
+        setClasses((prev) => [...prev, data]);
+      } else {
+        if (!newClassName) return;
+        const { data } = await api.post('/classes', {
+          name: newClassName,
+          teacher: selectedTeacher,
+          students: selectedStudents,
+          start: slotInfo.start,
+          end: slotInfo.end,
+        });
+        clsData = data;
+        // actualizar listas
+        setClasses((prev) => [...prev, data]);
+      }
+      // añadir evento
       setEvents((prev) => [
         ...prev,
         {
-          id: data._id,
-          title: data.name,
-          start: data.start,
-          end: data.end,
-          extendedProps: { cls: data },
+          id: clsData._id,
+          title: clsData.name,
+          start: slotInfo.start,
+          end: slotInfo.end,
+          extendedProps: { cls: clsData },
         },
       ]);
       closeModal();
@@ -138,6 +187,7 @@ const CoordinadorDashboard = () => {
   };
 
   const closeModal = () => {
+    setSelectedExistingClass('');
     setShowModal(false);
     setIsEditing(false);
     setEditingClassId(null);
@@ -154,9 +204,9 @@ const CoordinadorDashboard = () => {
     
       <h1 className="text-2xl font-bold mb-4">Panel Coordinador</h1>
 
-      {/* Agregar alumno */}
+      {/* Agregar / Editar alumno */}
       <div className="bg-white p-4 shadow rounded mb-4">
-        <h2 className="font-semibold mb-2">Agregar Alumno</h2>
+        <h2 className="font-semibold mb-2">{editingStudentId ? 'Editar Alumno' : 'Agregar Alumno'}</h2>
         <div className="flex gap-2 mb-2">
           <input
             type="text"
@@ -172,8 +222,8 @@ const CoordinadorDashboard = () => {
             value={parentEmail}
             onChange={(e) => setParentEmail(e.target.value)}
           />
-          <button onClick={addStudent} className="bg-blue-600 text-white px-4">
-            Guardar
+          <button onClick={saveStudent} className="bg-blue-600 text-white px-4">
+            {editingStudentId ? 'Actualizar' : 'Guardar'}
           </button>
         </div>
       </div>
@@ -196,6 +246,36 @@ const CoordinadorDashboard = () => {
           <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
             <div className="bg-white p-6 rounded w-full max-w-md">
               <h3 className="text-xl font-semibold mb-4">{isEditing ? 'Editar Clase' : 'Nueva Clase'}</h3>
+              {!isEditing && (
+                <div className="mb-3">
+                  <label className="block mb-1">Seleccionar clase existente</label>
+                  <select
+                    className="border p-2 w-full"
+                    value={selectedExistingClass}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSelectedExistingClass(val);
+                      if (val) {
+                        const cls = classes.find((c) => c._id === val);
+                        if (cls) {
+                          setNewClassName(cls.name);
+                          setSelectedTeacher(cls.teacher?._id || cls.teacher || '');
+                          setSelectedStudents((cls.students || []).map((s) => s?._id || s));
+                        }
+                      } else {
+                        setNewClassName('');
+                        setSelectedTeacher('');
+                        setSelectedStudents([]);
+                      }
+                    }}
+                  >
+                    <option value="">-- Ninguna --</option>
+                    {uniqueClasses.map((c) => (
+                      <option key={c._id} value={c._id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="mb-3">
                 <label className="block mb-1">Nombre de la clase</label>
                 <input
@@ -276,6 +356,12 @@ const CoordinadorDashboard = () => {
                 <td>{st.parent?.email}</td>
                 <td>
                   <button
+                    onClick={() => startEditStudent(st)}
+                    className="text-blue-600 mr-2"
+                  >
+                    Editar
+                  </button>
+                  <button
                     onClick={() => deleteStudent(st._id)}
                     className="text-red-600"
                   >
@@ -290,7 +376,5 @@ const CoordinadorDashboard = () => {
       </div>
     </div>
   );
-  
 };
-
 export default CoordinadorDashboard;

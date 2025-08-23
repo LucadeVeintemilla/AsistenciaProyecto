@@ -9,8 +9,8 @@ const Navbar = ({ title = 'Sistema de Asistencia' }) => {
   };
 
   return (
-    <nav className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 shadow-md">
-      <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+<nav className="bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-700 shadow-md">
+<div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
         <h1 className="text-white text-xl sm:text-2xl font-bold drop-shadow-lg">
           {title}
         </h1>

@@ -9,7 +9,7 @@ const { protect, authorize } = require('../middleware/auth');
 const router = express.Router();
 
 router.post('/', protect, authorize('coordinador'), createClass);
-router.get('/', protect, authorize('coordinador', 'docente'), getClasses);
+router.get('/', protect, authorize('coordinador', 'docente', 'psicologo'), getClasses);
 router.get('/:id', protect, authorize('coordinador', 'docente'), getClassById);
 router.put('/:id', protect, authorize('coordinador'), updateClass);
 

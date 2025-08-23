@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Navbar from '../components/Navbar';
 import ReportModal from '../components/ReportModal';
 import FullCalendar from '@fullcalendar/react';
@@ -6,6 +6,7 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import jwtDecode from 'jwt-decode';
 import api from '../api';
+import { getISOWeek } from 'date-fns';
 
 const statusColors = {
   presente: 'bg-green-500',
@@ -24,13 +25,39 @@ const DocenteDashboard = () => {
   };
   const [classes, setClasses] = useState([]);
   const [events, setEvents] = useState([]);
-  const [selectedClass, setSelectedClass] = useState(null);
-  const [showModal, setShowModal] = useState(false);
-  const [attendance, setAttendance] = useState({}); // { studentId: { status, comment } }
   const [savedAttendance, setSavedAttendance] = useState(() => {
     const stored = localStorage.getItem('savedAttendance');
     return stored ? JSON.parse(stored) : {};
   }); // { classId: attendanceObj }
+  const [selectedWeek, setSelectedWeek] = useState('');
+
+  const weekOptions = useMemo(() => {
+    const set = new Set(classes.map((cls) => getISOWeek(new Date(cls.start))));
+    return Array.from(set).sort((a, b) => a - b);
+  }, [classes]);
+
+  const filteredClasses = useMemo(() => {
+    if (!selectedWeek) return classes;
+    return classes.filter((cls) => getISOWeek(new Date(cls.start)) === Number(selectedWeek));
+  }, [classes, selectedWeek]);
+
+  // actualizar lista de eventos según semana seleccionada y asistencia guardada
+  useEffect(() => {
+    setEvents(
+      filteredClasses.map((cls) => ({
+        id: cls._id,
+        title: cls.name,
+        start: cls.start,
+        end: cls.end,
+        extendedProps: { cls },
+        backgroundColor: savedAttendance[cls._id] ? '#38bdf8' : '',
+      }))
+    );
+  }, [filteredClasses, savedAttendance]);
+
+  const [selectedClass, setSelectedClass] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [attendance, setAttendance] = useState({}); // { studentId: { status, comment } }
 
     useEffect(() => {
     // whenever savedAttendance changes, recolor events list
@@ -97,7 +124,7 @@ const DocenteDashboard = () => {
     }));
     await api.post('/attendance', {
       classId: selectedClass._id,
-      date: new Date(),
+      date: new Date(selectedClass.start),
       records,
     });
     // guarda asistencia local para esta clase
@@ -138,8 +165,16 @@ const DocenteDashboard = () => {
         </div>
         <div className="w-1/3 bg-white p-4 shadow rounded">
           <h2 className="font-semibold mb-2">Mis Clases</h2>
+            <div className="mb-2">
+              <select className="border p-1" value={selectedWeek} onChange={(e) => setSelectedWeek(e.target.value)}>
+                <option value="">Todas las semanas</option>
+                {weekOptions.map((w) => (
+                  <option key={w} value={w}>Semana {w}</option>
+                ))}
+              </select>
+            </div>
           <ul>
-            {classes.map((cls) => (
+            {filteredClasses.map((cls) => (
               <li
                 key={cls._id}
                 className={`p-2 cursor-pointer hover:bg-gray-100 ${
@@ -147,7 +182,7 @@ const DocenteDashboard = () => {
                 }`}
                 onClick={() => openClass(cls._id)}
               >
-                {cls.name}
+                {cls.name} - {new Date(cls.start).toLocaleDateString('es-ES',{ weekday: 'short' })} {new Date(cls.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </li>
             ))}
           </ul>
@@ -198,6 +233,7 @@ const DocenteDashboard = () => {
               >
                 Guardar Asistencia
               </button>
+              
               <button
                 className="mt-4 bg-blue-600 text-white px-4 py-2 rounded"
                 onClick={() => setShowModal(false)}
