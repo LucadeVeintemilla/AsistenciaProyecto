@@ -59,15 +59,17 @@ exports.teacherReport = async (req, res) => {
     const agg = await Attendance.aggregate(pipeline);
 
     // reshape
-    const result = {};
+    // Agrupar por nombre de curso (puede repetirse con distintos horarios)
+    const merged = {};
     agg.forEach(({ _id, count }) => {
       const { classId: cId, student: st, status } = _id;
-      const key = `${cId}_${st}`;
-      if (!result[key]) result[key] = { classId: cId.toString(), className: classMap[cId.toString()] || '', student: st.toString(), presente: 0, tardanza: 0, falta: 0 };
-      result[key][status] = count;
+      const name = classMap[cId.toString()] || 'Sin nombre';
+      const key = `${name}_${st}`; // mantener separado por alumno si aplica
+      if (!merged[key]) merged[key] = { className: name, student: st.toString(), presente: 0, tardanza: 0, falta: 0 };
+      merged[key][status] += count;
     });
 
-    res.json(Object.values(result));
+    res.json(Object.values(merged));
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: err.message });
@@ -106,15 +108,16 @@ exports.parentReport = async (req, res) => {
     const classes = await Class.find({ _id: { $in: classIds } }).select('_id name');
     const classMap = Object.fromEntries(classes.map((c) => [c._id.toString(), c.name]));
 
-    const result = {};
+    // Agrupar por nombre de curso (puede haber varios documentos para mismo curso en horarios distintos)
+    const merged = {};
     agg.forEach(({ _id, count }) => {
       const { classId: cId, status } = _id;
-      const key = cId.toString();
-      if (!result[key]) result[key] = { classId: key, className: classMap[key] || '', presente: 0, tardanza: 0, falta: 0 };
-      result[key][status] = count;
+      const name = classMap[cId.toString()] || 'Sin nombre';
+      if (!merged[name]) merged[name] = { className: name, presente: 0, tardanza: 0, falta: 0 };
+      merged[name][status] += count;
     });
 
-    res.json(Object.values(result));
+    res.json(Object.values(merged));
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: err.message });

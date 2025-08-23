@@ -23,7 +23,16 @@ const ReportModal = ({ isOpen, onClose, mode, teacherId, studentId }) => {
       } else if (mode === 'parent' && studentId) {
         // obtener cursos en los que está matriculado el alumno
         const { data: cls } = await api.get('/classes', { params: { student: studentId } });
-        setClasses(cls);
+        // eliminar duplicados por nombre
+        const uniqueByName = [];
+        const seen = new Set();
+        cls.forEach((c) => {
+          if (!seen.has(c.name)) {
+            seen.add(c.name);
+            uniqueByName.push(c);
+          }
+        });
+        setClasses(uniqueByName);
       }
     };
     load();
